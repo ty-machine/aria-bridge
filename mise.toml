@@ -1,0 +1,13 @@
+# mise config for aria-bridge (https://mise.jdx.dev/).
+#
+# This file is committed and intentionally carries no real values -- it's
+# just here so `mise trust` in this repo has something to trust. Real
+# per-box SSH host/user go in mise.local.toml, which is gitignored:
+#
+#   cp mise.local.toml.example mise.local.toml
+#   # edit mise.local.toml with your actual values
+#   mise trust
+#
+# Once trusted, mise exports these into your shell automatically whenever
+# you're in this directory (requires `mise activate` in your shell rc),
+# and the redeploy scripts in mac/ and ubuntu/ pick them up from there.

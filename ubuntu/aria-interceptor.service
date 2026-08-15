@@ -1,0 +1,18 @@
+[Unit]
+Description=Fitbit Aria (FB201B) traffic interceptor
+After=network.target
+
+[Service]
+# The scale hits www.fitbit.com over plain HTTP on port 80, so run this on
+# port 80 (needs root or setcap; see NOTE in README) unless you're doing
+# port translation at the router/DNS layer instead.
+Environment=ARIA_PORT=80
+Environment=ARIA_DATA_DIR=/opt/aria_bridge/data
+WorkingDirectory=/opt/aria_bridge
+ExecStart=/usr/bin/python3 /opt/aria_bridge/aria_interceptor.py
+Restart=on-failure
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

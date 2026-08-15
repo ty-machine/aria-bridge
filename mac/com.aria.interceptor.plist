@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.aria.interceptor</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <!-- Homebrew python3 on Apple Silicon. Confirm with `which python3`
+             on the Mac Mini itself -- Intel Macs use /usr/local/bin/python3. -->
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/usr/local/aria_bridge/aria_interceptor.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/usr/local/aria_bridge</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- The scale hits www.fitbit.com over plain HTTP on port 80, so
+             this needs to run as root (LaunchDaemon does) to bind it. -->
+        <key>ARIA_PORT</key>
+        <string>80</string>
+        <key>ARIA_DATA_DIR</key>
+        <string>/usr/local/aria_bridge/data</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/aria_interceptor.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/aria_interceptor.log</string>
+</dict>
+</plist>
+
+<!--
+Install (done automatically by mac/redeploy.sh, or by hand):
+    sudo cp com.aria.interceptor.plist /Library/LaunchDaemons/
+    sudo chown root:wheel /Library/LaunchDaemons/com.aria.interceptor.plist
+    sudo chmod 644 /Library/LaunchDaemons/com.aria.interceptor.plist
+    sudo launchctl bootstrap system /Library/LaunchDaemons/com.aria.interceptor.plist
+
+Check it's running:
+    sudo launchctl print system/com.aria.interceptor | head -20
+
+Uninstall:
+    sudo launchctl bootout system /Library/LaunchDaemons/com.aria.interceptor.plist
+    sudo rm /Library/LaunchDaemons/com.aria.interceptor.plist
+
+Watch logs:
+    sudo tail -f /var/log/aria_interceptor.log
+-->

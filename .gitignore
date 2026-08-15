@@ -1,3 +1,10 @@
+# aria-bridge project-specific
+# Weigh-in data logged by aria_interceptor.py -- sensitive family health data.
+data/
+# Real per-box SSH host/user, set via mise -- see mise.local.toml.example.
+mise.local.toml
+.mise.local.toml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
