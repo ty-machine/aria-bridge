@@ -16,23 +16,25 @@ at your Ubuntu box's IP instead of Google's.
 ## How it fits together
 
 ```
-FB201B scale --(plain HTTP, "www.fitbit.com")--> [DNS redirect] --> Ubuntu box
+FB201B scale --(plain HTTP, "www.fitbit.com")--> [DNS redirect] --> interceptor box
                                                                     aria_interceptor.py
                                                                     (parses + logs reading,
-                                                                     writes data/latest.json)
+                                                                     serves /latest/me)
                                                                             |
-                                                                     polled every 5 min by
-                                                                            |
-                                                                         your Mac
-                                                                    poll_aria.sh + Shortcut
-                                                                    "Log Health Sample"
-                                                                            |
-                                                                     macOS Health app
-                                                                            |
-                                                             iCloud Health sync (built-in)
+                                                                    pulled once a day by a
+                                                                    Shortcuts Personal
+                                                                    Automation on your iPhone
+                                                                    ("Get Contents of URL" ->
+                                                                     "Log Health Sample")
                                                                             |
                                                                     iPhone Health app
 ```
+
+There is no native Health app for Mac — that was a wrong assumption in an
+earlier version of this doc. `HealthKit.framework` and the `healthd`
+daemon exist on macOS, but nothing exposes a "Log Health Sample" action
+to Shortcuts without the (nonexistent) app, so the Health-logging step
+happens entirely on your iPhone instead — see step 4.
 
 **A family scale note:** the Aria's "guest" mode (`user_id=0`) doesn't
 distinguish between people — everyone who steps on without a registered
@@ -40,11 +42,11 @@ profile shows up as the same guest. If more than one person (or kid) uses
 the scale, `aria_interceptor.py` sorts readings into family bands purely
 by weight (see `FAMILY_BANDS` near the top of the file — edit the ranges
 to match your household). Every reading still gets logged to
-`data/readings.csv`/`readings.jsonl` regardless of band, but the poller
-hits `/latest/me` specifically, so only your own weigh-ins ever reach
-your Apple Health — not your kids' or your partner's. Other bands are
-retrievable the same way (`/latest/wife`, `/latest/toddler`, etc.) if you
-ever want to build a second pipeline for someone else.
+`data/readings.csv`/`readings.jsonl` regardless of band, but the iPhone
+automation hits `/latest/me` specifically, so only your own weigh-ins
+ever reach your Apple Health — not your kids' or your partner's. Other
+bands are retrievable the same way (`/latest/wife`, `/latest/toddler`,
+etc.) if you ever want to build a second pipeline for someone else.
 
 We don't relay anything to Fitbit's real servers, and we don't check the
 scale's `auth_code` — the server just accepts any well-formed upload from
@@ -67,8 +69,10 @@ Fitbit account alive.
 - `aria-interceptor.service` — systemd unit for running the server on the
   Ubuntu box.
 - `dnsmasq_aria.conf` — the DNS redirect config.
-- `poll_aria.sh` + `com.aria.bridge.poller.plist` — the Mac-side piece
-  that polls the interceptor and triggers the Health-logging Shortcut.
+- The Health-logging piece has no file here — it's a Shortcuts Personal
+  Automation you build directly on your iPhone (step 4 below). There used
+  to be a Mac-side poller script for this; it's retired, see step 4 for
+  why.
 
 ## Setup order
 
@@ -155,50 +159,47 @@ already live, registration completes cleanly right away; if not, the
 scale still saves the new Wi-Fi credentials and joins the network, it'll
 just quietly keep retrying registration until your interceptor is up.
 
-### 4. Build the Health-logging Shortcut on your Mac
+### 4. Build the Health-logging automation on your iPhone
 
-macOS Sonoma (14) or later has the Health app on Mac, which is what makes
-this whole chain possible without an iOS app. Open **Shortcuts** on your
-Mac and create a new shortcut named exactly `Aria Weight to Health`
-(the poller script calls it by this name):
+There's no native Health app for Mac, so this whole step happens on your
+iPhone instead of the Mac (an earlier version of this doc assumed
+otherwise — that was wrong). Open **Shortcuts** on your iPhone, go to the
+**Automation** tab, and create a new **Personal Automation**:
 
-1. **Get Dictionary from Input** — leave input as "Shortcut Input."
-2. **Get Dictionary Value** — Get value for key `weight_kg`, from the
-   dictionary above.
-3. **Log Health Sample** — Type: *Weight*, Unit: *Kilograms*, Sample:
-   the dictionary value from step 2. Leave Date blank (it defaults to
-   "now," which is close enough since this runs within minutes of the
-   actual weigh-in).
+1. **Trigger: Time of Day** — set to whenever you typically weigh in
+   (e.g. 7:00 AM), repeating **Daily**. iOS doesn't allow a background
+   automation to poll every few minutes the way the old Mac LaunchAgent
+   did, so this checks once a day instead — fine for a once-a-day
+   weigh-in.
+2. **Actions**, in order:
+   - **Get Contents of URL** — GET request to
+     `http://<interceptor-address>/latest/me` (the address in
+     `ARIA_SERVER_URL` in your `mise.local.toml`).
+   - **Get Dictionary from Input** — from the URL contents above.
+   - **Get Dictionary Value** — key `logged_at`, from the dictionary.
+   - **Format Date** — Input: the `logged_at` value from the step above,
+     Custom Format `yyyy-MM-dd`. Call this result `ReadingDate`.
+   - **Format Date** — Input: **Current Date**, Custom Format
+     `yyyy-MM-dd`. Call this result `TodayDate`.
+   - **If** `ReadingDate` equals `TodayDate`:
+     - **Get Dictionary Value** — key `weight_kg`, from the original
+       dictionary (not the formatted dates).
+     - **Log Health Sample** — Type: *Weight*, Unit: *Kilograms*, Sample:
+       the `weight_kg` value above. Leave Date blank (defaults to now).
+   - **Otherwise**: leave empty — this skips logging when the
+     interceptor's last reading isn't from today (nobody's weighed in
+     yet, or the automation fired before you stepped on the scale).
+3. Turn off **"Ask Before Running"** for this automation (toggle at the
+   bottom when editing it), otherwise iOS shows a confirmation banner
+   every time instead of running silently in the background.
 
-Run it once manually with a test file to confirm it prompts you to grant
-Health-write access, and that a "Weight" entry shows up in the Health app
-afterward:
+Run it once by hand (open the automation, tap **Run**) to confirm it
+prompts you to grant Health-write access, and that a "Weight" entry shows
+up in the iPhone Health app afterward.
 
-```
-echo '{"weight_kg": 82.4}' > /tmp/test.json
-shortcuts run "Aria Weight to Health" --input-path /tmp/test.json
-```
-
-Then, on both this Mac and your iPhone: Health app → your profile icon
-(top right) → make sure Health data sync via iCloud is turned on. That's
-the "cloud" leg — it's what actually moves the entry from your Mac's
-Health app to your iPhone's.
-
-### 5. Install the poller
-
-Edit `poll_aria.sh`, set `SERVER` to your Ubuntu box's address, then:
-
-```
-mkdir -p ~/aria_bridge && cp poll_aria.sh com.aria.bridge.poller.plist ~/aria_bridge/
-chmod +x ~/aria_bridge/poll_aria.sh
-# edit the plist's ProgramArguments path to match, then:
-cp ~/aria_bridge/com.aria.bridge.poller.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.aria.bridge.poller.plist
-```
-
-It checks every 5 minutes for a newer reading than the last one it
-logged, and only fires the Shortcut when there's something new — no
-duplicate entries from repeated polling.
+Note: `logged_at` is the interceptor box's local time, not the phone's —
+fine as long as both are in the same timezone, which they will be for a
+household setup like this.
 
 ## Notes and caveats
 

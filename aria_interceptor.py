@@ -82,9 +82,9 @@ class BadUpload(Exception):
 # together, so user_id alone can't tell family members apart. These weight
 # bands (in lb) are a rough proxy instead -- adjust as needed (e.g. nudge
 # "toddler" up as a kid grows). Only the "me" band gets pushed to Apple
-# Health by the poller (via /latest/me) -- everyone else still gets
-# logged to the CSV/JSON for reference, just not pushed to your personal
-# Health app.
+# Health, by the iPhone Shortcuts automation that polls /latest/me --
+# everyone else still gets logged to the CSV/JSON for reference, just not
+# pushed to your personal Health app.
 #
 # (label, min_lb inclusive, max_lb exclusive)
 # --------------------------------------------------------------------------
@@ -288,8 +288,8 @@ def latest():
 @app.route("/latest/<person>", methods=["GET"])
 def latest_for_person(person):
     """Most recent reading for one family-band label (see FAMILY_BANDS),
-    e.g. /latest/me. This is what the Mac poller should point at, so only
-    your own weigh-ins reach Apple Health."""
+    e.g. /latest/me. This is what the iPhone Shortcuts automation should
+    point at, so only your own weigh-ins reach Apple Health."""
     person_file = DATA_DIR / f"latest_{person}.json"
     if not person_file.exists():
         return jsonify({"error": f"no readings yet for '{person}'"}), 404

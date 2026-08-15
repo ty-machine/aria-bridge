@@ -4,11 +4,17 @@
 #   cp mise.local.toml.example mise.local.toml
 #   mise trust
 #
-# mac/redeploy.sh and ubuntu/redeploy.sh read these instead of hardcoding
-# your network's real host/user in a committed file.
+# mac/redeploy.sh and ubuntu/redeploy.sh read the SSH_* values instead of
+# hardcoding your network's real host/user in a committed file.
 
 [env]
 ARIA_MAC_SSH_HOST = "10.0.0.10"
 ARIA_MAC_SSH_USER = "yourusername"
 ARIA_UBUNTU_SSH_HOST = "10.0.0.11"
 ARIA_UBUNTU_SSH_USER = "yourusername"
+
+# Wherever the interceptor is actually live right now -- one of the two
+# hosts above, not necessarily the one you're actively redeploying to. No
+# script reads this one; it's just the source of truth for what address
+# to type into the iPhone Shortcuts automation (README.md step 4).
+ARIA_SERVER_URL = "http://10.0.0.11"

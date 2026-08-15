@@ -63,6 +63,21 @@ into Apple Health.
   when copied from a rendered chat response. Always type config directly
   or use a `heredoc` (`cat <<'EOF' ... EOF`) rather than copy/pasting
   from rendered text.
+- **There is no native Health app for Mac.** An earlier session assumed
+  otherwise ("macOS Sonoma (14)+ has Health on Mac") and the whole
+  original design was built on that — wrong, don't repeat it. Verified
+  directly on Ty's Mac (2026-08-14, macOS 26.4.1, Apple Silicon):
+  `system_profiler SPApplicationsDataType` shows no Health.app or
+  Fitness.app anywhere, and Shortcuts has no "Log Health Sample" action
+  available. `HealthKit.framework` and the `healthd` daemon *are*
+  present and running, but nothing exposes the logging action to
+  Shortcuts without the (nonexistent) app. A Spotlight search for
+  "Health" surfaces an iPhone Mirroring shim, not a real Mac app — easy
+  to mistake for the real thing at a glance. Fix: do the Health-logging
+  step on the iPhone instead, via a Shortcuts **Personal Automation**
+  (real "Log Health Sample" support there) — see README.md step 4. This
+  replaced the whole Mac poller/Shortcut design (`poll_aria.sh`,
+  `com.aria.bridge.poller.plist`, both deleted from the repo).
 - **Testing DNS with `dig @<server-ip>` from the same machine that runs
   the DNS server can give a false pass** — it can succeed even when a
   firewall would block other devices on the LAN from reaching it. Always
@@ -124,10 +139,11 @@ which should self-correct going forward.
 - `dnsmasq_aria.conf` — reference DNS override config (see README for
   the fuller version with explicit upstream forwarders, which is what
   actually needs to be deployed).
-- `poll_aria.sh` + `com.aria.bridge.poller.plist` — runs on Ty's
-  everyday Mac (NOT the Mac Mini), polls `/latest/me` on the interceptor,
-  triggers the `Aria Weight to Health` Shortcut on new readings via
-  `shortcuts run`.
+- No file for Health-logging — it's a Shortcuts Personal Automation
+  built directly on Ty's iPhone (README.md step 4), since there's no
+  native Health app for Mac (see "Key findings"). The old
+  `poll_aria.sh` + `com.aria.bridge.poller.plist` Mac-poller pair that
+  used to do this has been deleted from the repo.
 - `README.md` — full setup instructions, including the Mac Mini
   migration section.
 - (Delivered separately, not in the zip) `redeploy.sh` — pushes updated
@@ -158,8 +174,10 @@ In progress when this handoff was written. Outstanding steps, in order:
    trusting it with the real scale.
 5. **Point the UDM's DHCP Name Server at the Mac Mini's fixed IP**
    (consider adding `1.1.1.1` as a second entry as a fallback this time).
-6. **Update `SERVER` in `poll_aria.sh`** (on Ty's everyday Mac, not the
-   Mini) to the Mac Mini's IP.
+6. **Update `ARIA_SERVER_URL` in `mise.local.toml`** to the Mac Mini's
+   IP, and update the URL typed into the iPhone Shortcuts automation's
+   "Get Contents of URL" action to match (that field is manual, mise
+   doesn't reach it).
 7. **Confirm the scale itself picks back up** — no re-pairing should be
    needed since only the DNS target moved, not the Wi-Fi network. Watch
    `tail -f /var/log/aria_interceptor.log` on the Mac Mini and step on
@@ -167,15 +185,22 @@ In progress when this handoff was written. Outstanding steps, in order:
 
 ## Not yet confirmed / verify these
 
-- Whether the `Aria Weight to Health` Shortcut has actually been created
-  in the Shortcuts app on Ty's everyday Mac (instructions given in
-  README section 4, completion unconfirmed).
-- Whether `poll_aria.sh` has been installed as a LaunchAgent
-  (`com.aria.bridge.poller.plist`) and is actually running on a 5-minute
-  schedule (README section 5, completion unconfirmed).
+- Whether the iPhone Shortcuts Personal Automation (README.md step 4:
+  Get Contents of URL -> date-match check -> Log Health Sample) has
+  actually been built on Ty's iPhone. Not started as of 2026-08-14 —
+  this session ended right as the Mac Health app dead-end was found and
+  the iPhone approach was designed; the automation itself hasn't been
+  built yet.
+- Whether "Ask Before Running" has been turned off for that automation,
+  without which it'll sit waiting for a confirmation tap instead of
+  running silently on its daily schedule.
 - An actual end-to-end real weigh-in landing in Apple Health has not yet
-  been confirmed — everything up to `/latest/me` returning correct data
-  has been verified; the Shortcut/Health leg has not been.
+  been confirmed. What *has* been verified (2026-08-14, read-only test
+  against the live `.240` interceptor): `poll_aria.sh` — before it was
+  retired — successfully fetched a real reading from `/latest/me` and
+  attempted to log it, failing only because the Shortcut didn't exist.
+  So the interceptor and its data are known-good; only the Health-logging
+  leg (now iPhone-side) remains unverified.
 
 ## Possible future work (not started, only discussed)
 
