@@ -45,6 +45,30 @@ LATEST_FILE = DATA_DIR / "latest.json"
 RAW_DIR = DATA_DIR / "raw_uploads"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
+
+def _measurement_key(mac: str, m: dict) -> tuple:
+    return (mac, m["user_id"], m["timestamp"], m["weight_g"])
+
+
+def _load_seen_measurements() -> set:
+    """The scale resends its whole local cache on every upload, not just
+    new measurements since the last one -- rebuild the dedup set from
+    what's already on disk so a restart doesn't start re-logging
+    everything it's ever sent."""
+    seen = set()
+    if JSONL_LOG.exists():
+        with open(JSONL_LOG) as f:
+            for line in f:
+                try:
+                    record = json.loads(line)
+                    seen.add(_measurement_key(record["mac"], record))
+                except (json.JSONDecodeError, KeyError):
+                    continue
+    return seen
+
+
+_seen_measurements = _load_seen_measurements()
+
 # --------------------------------------------------------------------------
 # CRC-16/XMODEM (poly 0x1021, init 0x0000, no reflect, no final xor).
 #
@@ -193,7 +217,11 @@ def parse_upload(body: bytes) -> dict:
 # --------------------------------------------------------------------------
 def build_upload_response() -> bytes:
     now = int(time.time())
-    units = 2       # kilograms
+    units = 0       # pounds -- matches FAMILY_BANDS and weight_lb elsewhere
+                     # in this project. Was hardcoded to 2 (kilograms); the
+                     # scale only started actually applying this field once
+                     # the CRC fix let it trust our responses, which is why
+                     # the display switched to kg after that fix landed.
     status = 0x32   # "configured" -- keeps the scale happy, no setup nag
     unknown1 = 0x01
     user_count = 0
@@ -215,9 +243,31 @@ def build_upload_response() -> bytes:
 # --------------------------------------------------------------------------
 # Logging
 # --------------------------------------------------------------------------
+def _write_if_newer(path: Path, record: dict):
+    """Only overwrite a 'latest' file if this record is actually newer
+    (by the measurement's own scale-side timestamp) than what's there.
+    The scale's measurement list isn't strictly newest-first across its
+    full length (only the first entry is guaranteed newest, per protocol
+    docs -- and that's not borne out by real captures either), so we
+    can't just take whichever measurement a batch happens to end on."""
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text())
+            if existing.get("timestamp", -1) >= record["timestamp"]:
+                return
+        except (json.JSONDecodeError, OSError):
+            pass  # unreadable/corrupt -- fall through and overwrite
+    path.write_text(json.dumps(record, indent=2))
+
+
 def log_reading(parsed: dict):
     now_iso = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
     for m in parsed["measurements"]:
+        key = _measurement_key(parsed["mac"], m)
+        if key in _seen_measurements:
+            continue
+        _seen_measurements.add(key)
+
         person = classify_person(m["weight_lb"])
         record = {
             "logged_at": now_iso,
@@ -238,9 +288,8 @@ def log_reading(parsed: dict):
                 writer.writeheader()
             writer.writerow(record)
 
-        LATEST_FILE.write_text(json.dumps(record, indent=2))
-        latest_person_file = DATA_DIR / f"latest_{person}.json"
-        latest_person_file.write_text(json.dumps(record, indent=2))
+        _write_if_newer(LATEST_FILE, record)
+        _write_if_newer(DATA_DIR / f"latest_{person}.json", record)
 
         log.info("Logged reading: person=%s user_id=%s weight_kg=%.2f weight_lb=%.2f",
                   person, m["user_id"], m["weight_kg"], m["weight_lb"])
