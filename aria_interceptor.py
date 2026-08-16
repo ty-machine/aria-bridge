@@ -46,11 +46,17 @@ RAW_DIR = DATA_DIR / "raw_uploads"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 # --------------------------------------------------------------------------
-# CRC-16/XMODEM (poly 0x1021, init 0xFFFF, no reflect, no final xor).
-# This is the checksum algorithm documented for the Aria protocol.
+# CRC-16/XMODEM (poly 0x1021, init 0x0000, no reflect, no final xor).
+#
+# An earlier version of this used init=0xFFFF, which is actually
+# CRC-16/CCITT-FALSE -- a different, commonly-confused variant that
+# shares XMODEM's polynomial. That produced a CRC mismatch on every real
+# upload (see HANDOFF.md). Confirmed against a real captured upload
+# (2026-08-16, /opt/aria_bridge/data/raw_uploads on the ubuntu box):
+# init=0x0000 reproduces the scale's CRC exactly; init=0xFFFF does not.
 # --------------------------------------------------------------------------
 def crc16_xmodem(data: bytes) -> int:
-    crc = 0xFFFF
+    crc = 0x0000
     for b in data:
         crc ^= b << 8
         for _ in range(8):

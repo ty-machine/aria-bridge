@@ -27,13 +27,24 @@ into Apple Health.
   `GET /scale/setup` (pairing only), `POST /scale/upload` (the actual
   measurement data). Full struct layout is documented in comments at the
   top of `aria_interceptor.py`.
-- **CRC checksum**: implemented as CRC-16/XMODEM (poly 0x1021, seed
-  0xFFFF) per the community docs, but it does NOT match what this
-  scale's actual firmware (v39) computes — every real upload shows a CRC
-  mismatch. We deliberately don't reject on CRC failure, so it's
-  harmless, but the exact algorithm this firmware uses is still unknown.
-  Not worth chasing further unless you want strict validation for its
-  own sake.
+- **CRC checksum bug, found and fixed 2026-08-16.** The original
+  implementation used init=0xFFFF, which is actually CRC-16/CCITT-FALSE
+  (a different, commonly-confused variant that shares XMODEM's
+  polynomial 0x1021) — not true CRC-16/XMODEM, which uses init=0x0000.
+  This was *not* just cosmetic: `build_upload_response()` uses the same
+  function to CRC our replies to the scale, and the scale likely
+  validates that CRC before considering an upload synced. This lines up
+  exactly with the symptom Ty reported — "no sync" shown on every single
+  upload, always resending the *entire* cache, never clearing it — the
+  scale probably never accepted our (wrong-CRC) responses as valid.
+  Confirmed against a real captured upload
+  (`data/crc_samples/1786908095_560bytes.bin`, pulled from the ubuntu
+  box's `raw_uploads/`, gitignored — not committed): brute-forced ~30
+  standard CRC-16 variants, and init=0x0000 (true XMODEM) is the only
+  one that reproduces the scale's CRC exactly; the old init=0xFFFF does
+  not. Fixed in `aria_interceptor.py`. **Not yet redeployed or verified
+  against the real scale** — needs `ubuntu/redeploy.sh` run, then a real
+  weigh-in to confirm "no sync" actually clears.
 - **Measurement struct layout is confirmed correct** — verified against
   real hardware: a real backlog upload of 17 cached measurements parsed
   100% cleanly with plausible weights (see "Real data captured" below).
@@ -211,5 +222,10 @@ In progress when this handoff was written. Outstanding steps, in order:
   (scale would do its own weight-matching instead of our server-side
   heuristic, possibly show names on its display) — explicitly deferred
   as not worth the added protocol-reverse-engineering risk right now.
-- Pinning down the real CRC algorithm this firmware uses (cosmetic only,
-  current mismatch is harmless).
+  Real struct layout (81 bytes packed, from `micolous/helvetic`'s
+  protocol.md) is in the 2026-08-16 conversation if this gets picked
+  back up; worth noting the scale's cache already carries at least one
+  non-guest `user_id` (`42592252`) from before Fitbit's backend died,
+  which might be reusable instead of inventing new IDs.
+- ~~Pinning down the real CRC algorithm this firmware uses~~ — done,
+  see "Key findings."
