@@ -11,7 +11,7 @@ The Mac mini migration was never finished, and the plan changed: the interceptor
 homelab k3s cluster, as a container, instead of onto a dedicated host.
 
 - **Where it runs.** The `Dockerfile` and `.github/workflows/image.yml` here build
-  `ghcr.io/ty-machine/aria-bridge` (private package). The deployment, address (`10.0.0.4`), storage,
+  `ghcr.io/ty-machine/aria-bridge` (public package). The deployment, address (`10.0.0.4`), storage,
   DNS records and the whole cutover procedure live in the `ty-machine/homelab` repository:
   `docs/runbooks/aria-bridge.md`. That runbook is the operating procedure. This repo is the code and
   the protocol notes.

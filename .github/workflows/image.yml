@@ -1,4 +1,4 @@
-# Builds the interceptor image and pushes it to GitHub Container Registry (private package).
+# Builds the interceptor image and pushes it to GitHub Container Registry. The repository is public, so the package is public too.
 #
 # The homelab cluster pins the image by digest, so a push here changes nothing until the digest
 # in ty-machine/homelab (clusters/homelab/aria-bridge/values.yaml) is updated and reviewed.
