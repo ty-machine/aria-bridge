@@ -5,6 +5,27 @@ session (or save it as `CLAUDE.md` in the project folder so it loads
 automatically). It covers everything learned and built so far, current
 status, and exactly what's left.
 
+## Status update, November 24, 2026 (supersedes the migration plan below)
+
+The Mac mini migration was never finished, and the plan changed: the interceptor is moving into the
+homelab k3s cluster, as a container, instead of onto a dedicated host.
+
+- **Where it runs.** The `Dockerfile` and `.github/workflows/image.yml` here build
+  `ghcr.io/ty-machine/aria-bridge` (private package). The deployment, address (`10.0.0.4`), storage,
+  DNS records and the whole cutover procedure live in the `ty-machine/homelab` repository:
+  `docs/runbooks/aria-bridge.md`. That runbook is the operating procedure. This repo is the code and
+  the protocol notes.
+- **DNS correction.** "The UDM's Local DNS Record feature does not override this domain" was wrong
+  for `www.fitbit.com`: a static A record answers it (checked with `dig @10.0.0.1`). The behavior we
+  saw was on `1.scale.www.fitbit.com`, which is a CNAME upstream, so the UDM returns the real chain
+  unless that name has its own A record. No dnsmasq box is needed. Do not point household DNS at a
+  host that is not the UDM.
+- **Retired.** `ubuntu/` and `mac/` (systemd unit, LaunchDaemon, dnsmasq snippet, redeploy scripts)
+  are kept for reference only. The container replaces them.
+- **Data.** The old box's data (56 readings, newest 2026-08-25) was backed up on 2026-11-24 and is
+  restored into the cluster volume at cutover. The interceptor code is unchanged by the move.
+- **Not diagnosed.** Why uploads stopped on 2026-08-25.
+
 ## Goal
 
 Keep a discontinued Fitbit Aria (FB201B) Wi-Fi smart scale working after

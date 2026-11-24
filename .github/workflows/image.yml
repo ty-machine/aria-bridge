@@ -1,0 +1,60 @@
+# Builds the interceptor image and pushes it to GitHub Container Registry (private package).
+#
+# The homelab cluster pins the image by digest, so a push here changes nothing until the digest
+# in ty-machine/homelab (clusters/homelab/aria-bridge/values.yaml) is updated and reviewed.
+# The digest of each build is in the job summary.
+name: image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - aria_interceptor.py
+      - scripts/**
+      - requirements.txt
+      - Dockerfile
+      - .github/workflows/image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: image
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          # The cluster nodes are x86-64 Chromeboxes.
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/ty-machine/aria-bridge:main
+            ghcr.io/ty-machine/aria-bridge:sha-${{ github.sha }}
+
+      - name: Record the digest
+        run: |
+          {
+            echo "### Image digest"
+            echo
+            echo '```'
+            echo "ghcr.io/ty-machine/aria-bridge@${{ steps.build.outputs.digest }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

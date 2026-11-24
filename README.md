@@ -13,6 +13,13 @@ is unencrypted HTTP, so there's nothing to spoof or work around there.
 The whole trick is DNS — telling your network that `www.fitbit.com` lives
 at your Ubuntu box's IP instead of Google's.
 
+## Running it
+
+The supported way to run this is as a container in the homelab k3s cluster: `Dockerfile` here,
+deployment and DNS in `ty-machine/homelab` (see `docs/runbooks/aria-bridge.md` there). The systemd,
+LaunchDaemon and dnsmasq files under `ubuntu/` and `mac/` are the earlier host-based setup, kept for
+reference. The local test in step 1 below still works as written.
+
 ## How it fits together
 
 ```

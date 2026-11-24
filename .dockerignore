@@ -1,0 +1,12 @@
+# Family health data and per-box settings never go into an image.
+data/
+mise.local.toml
+.mise.local.toml
+.git/
+.github/
+__pycache__/
+*.py[cod]
+# Retired host deploy scripts and docs are not part of the image.
+mac/
+ubuntu/
+*.md
